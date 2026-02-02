@@ -1,0 +1,85 @@
+services:
+  frontend:
+    image: nuxtjs
+    environment:
+      NODE_ENV: production
+      NITRO_HOST: 0.0.0.0
+      NITRO_PORT: 3000
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.frontend.rule=Host(`app1.realmtech.cloud`,`app2.realmtech.cloud`,`app3.realmtech.cloud`)'
+        - 'traefik.http.routers.frontend.entrypoints=websecure'
+        # - "traefik.http.routers.nuxt.tls.certresolver=wildcard"
+        - 'traefik.http.routers.frontend.tls.certresolver=letsencryptresolver'
+        - 'traefik.http.services.frontend.loadbalancer.passHostHeader=true'
+        - 'traefik.http.services.frontend.loadbalancer.server.port=3000'
+        - 'traefik.docker.network=traefik'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - public
+
+  backend:
+    image: nestjs-app:latest
+    depends_on:
+      - mongodb
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/nestjs-social-auth-refresh
+    env_file:
+      - .env
+    deploy:
+      mode: replicated
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+      labels:
+        - 'traefik.enable=true'
+        - 'traefik.http.routers.backend.rule=Host(`api.realmtech.cloud`)'
+        - 'traefik.http.routers.backend.entrypoints=websecure'
+        # - "traefik.http.routers.nuxt.tls.certresolver=wildcard"
+        - 'traefik.http.routers.backend.tls.certresolver=letsencryptresolver'
+        - 'traefik.http.services.backend.loadbalancer.server.port=3001'
+        - 'traefik.http.services.backend.loadbalancer.passHostHeader=true'
+        - 'traefik.docker.network=traefik'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+    networks:
+      - public
+
+networks:
+  public:
+    external: true
+    name: public
